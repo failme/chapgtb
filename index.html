@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nova — AI Chatbot</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="chat-app">
+      <header class="chat-header">
+        <div class="bot-avatar" aria-hidden="true">🤖</div>
+        <div>
+          <p class="bot-name">Nova</p>
+          <p class="bot-status">Online • AI assistant</p>
+        </div>
+      </header>
+
+      <section class="chat-window" id="chatWindow" aria-live="polite">
+        <article class="message bot">
+          <div class="message-bubble">
+            Hi! I’m Nova, your AI chatbot. Ask me anything or pick a quick prompt below.
+          </div>
+          <time class="message-time">Now</time>
+        </article>
+      </section>
+
+      <section class="quick-prompts" aria-label="Quick prompts">
+        <button type="button" data-prompt="Give me a productivity tip.">Productivity tip</button>
+        <button type="button" data-prompt="Summarize the benefits of deep focus.">Deep focus</button>
+        <button type="button" data-prompt="Suggest a healthy lunch idea.">Healthy lunch</button>
+        <button type="button" data-prompt="Write a short motivational message.">Motivation</button>
+      </section>
+
+      <form class="chat-input" id="chatForm">
+        <label class="visually-hidden" for="messageInput">Message</label>
+        <input
+          id="messageInput"
+          name="message"
+          type="text"
+          autocomplete="off"
+          placeholder="Type your message..."
+          required
+        />
+        <button type="submit">Send</button>
+      </form>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
