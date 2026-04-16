@@ -11,6 +11,7 @@ from perlin_noise import PerlinNoise
 import random
 import math
 from collections import deque
+from ursina import color as ursina_color
 
 # --- Configuration ---
 CHUNK_SIZE = 16
@@ -136,7 +137,7 @@ def generate_chunk_data(cx, cz):
 
 # --- Chunk Class ---
 class Voxel(Button):
-    def __init__(self, position=(0,0,0), texture='white_cube', color=color.white, model='cube'):
+    def __init__(self, position=(0,0,0), texture='white_cube', color=ursina_color.white, model='cube'):
         super().__init__(
             parent=scene,
             position=position,
@@ -144,7 +145,7 @@ class Voxel(Button):
             origin_y=0.5,
             texture=texture,
             color=color,
-            highlight_color=color.lime,
+            highlight_color=ursina_color.lime,
         )
 
 class Chunk(Entity):
