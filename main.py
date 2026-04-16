@@ -1,7 +1,14 @@
 """
-Minecraft Clone - Phases 1-4 Complete
+Minecraft Clone - Phases 1-4 Complete (OPTIMIZED)
 Run with: python main.py
 Controls: WASD Move, Space Jump, Click Break/Place, E Inventory, 1-9 Hotbar
+
+PERFORMANCE OPTIMIZATIONS APPLIED:
+1. Merged mesh rendering - Single entity per chunk instead of individual block entities
+2. Face culling - Only render visible block faces
+3. Vertex-based geometry - Direct vertex buffer instead of Button entities
+4. Occlusion caching - Cache solid checks during mesh generation
+5. Reduced draw calls - Dramatically fewer entities in scene graph
 """
 
 import numpy as np
@@ -136,25 +143,13 @@ def generate_chunk_data(cx, cz):
     return data
 
 # --- Chunk Class ---
-class Voxel(Button):
-    def __init__(self, position=(0,0,0), texture='white_cube', color=ursina_color.white, model='cube'):
-        super().__init__(
-            parent=scene,
-            position=position,
-            model=model,
-            origin_y=0.5,
-            texture=texture,
-            color=color,
-            highlight_color=ursina_color.lime,
-        )
-
 class Chunk(Entity):
     def __init__(self, cx, cz, world):
         super().__init__()
         self.cx, self.cz = cx, cz
         self.world = world
         self.data = None
-        self.entities = []
+        self.entity = None  # Single merged mesh entity
         self.is_generated = False
         
         # Position chunk in world space
@@ -168,45 +163,124 @@ class Chunk(Entity):
         self.is_generated = True
         
     def build_mesh(self):
-        # Clear old entities
-        for e in self.entities:
-            destroy(e)
-        self.entities = []
+        # Destroy old mesh entity
+        if self.entity:
+            destroy(self.entity)
+            self.entity = None
         
-        # Simple mesh building (Instancing would be better for performance, but using Entities for clarity)
-        # Optimization: Only create entities for visible blocks
+        # Generate optimized mesh data
+        vertices = []
+        colors = []
+        block_data = []  # Store block info for raycasting
+        
+        # Optimization: Pre-calculate solid check lookup
+        solid_cache = {}
+        
         for x in range(CHUNK_SIZE):
             for z in range(CHUNK_SIZE):
                 for y in range(WORLD_HEIGHT):
                     bid = self.data[x, y, z]
-                    if bid != AIR:
-                        # Check if surrounded (simple culling)
-                        if self.is_solid(x, y+1, z) and self.is_solid(x, y-1, z) and \
-                           self.is_solid(x+1, y, z) and self.is_solid(x-1, y, z) and \
-                           self.is_solid(x, y, z+1) and self.is_solid(x, y, z-1):
-                            continue # Skip internal blocks
-                            
-                        ent = Voxel(
-                            position=(self.x + x, y + WORLD_BOTTOM, self.z + z),
-                            color=BLOCK_COLORS.get(bid, color.white),
-                            model='cube'
-                        )
-                        ent.block_id = bid
-                        ent.parent_chunk = self
-                        ent.x_idx, ent.y_idx, ent.z_idx = x, y, z
-                        self.entities.append(ent)
-
-    def is_solid(self, x, y, z):
-        if x < 0 or x >= CHUNK_SIZE or z < 0 or z >= CHUNK_SIZE: return True # Treat neighbors as solid for simple culling
-        if y < 0 or y >= WORLD_HEIGHT: return False
+                    if bid == AIR:
+                        continue
+                    
+                    # Check if surrounded (face culling)
+                    if self._is_fully_occluded(x, y, z, solid_cache):
+                        continue
+                        
+                    # Add vertex data for visible faces
+                    wx, wy, wz = self.x + x, y + WORLD_BOTTOM, self.z + z
+                    face_verts, face_colors = self._generate_block_faces(wx, wy, wz, bid)
+                    vertices.extend(face_verts)
+                    colors.extend(face_colors)
+                    
+                    # Store block position for interaction
+                    block_data.append((wx, wy, wz, bid))
+        
+        # Create single merged entity
+        if vertices:
+            self.entity = Entity(
+                parent=scene,
+                model=Mesh(vertices=vertices, colors=colors, mode='triangle'),
+                position=(0, 0, 0),
+                collider='box'
+            )
+            self.entity.block_data = block_data
+            self.entity.chunk = self
+        
+    def _is_fully_occluded(self, x, y, z, cache):
+        """Check if block is completely surrounded by solid blocks"""
+        key = (x, y, z)
+        if key in cache:
+            return cache[key]
+        
+        directions = [
+            (0, 1, 0), (0, -1, 0), (1, 0, 0), (-1, 0, 0),
+            (0, 0, 1), (0, 0, -1)
+        ]
+        
+        for dx, dy, dz in directions:
+            nx, ny, nz = x + dx, y + dy, z + dz
+            if not self._is_solid_local(nx, ny, nz):
+                cache[key] = False
+                return False
+        
+        cache[key] = True
+        return True
+    
+    def _is_solid_local(self, x, y, z):
+        """Check if a local coordinate is solid"""
+        if x < 0 or x >= CHUNK_SIZE or z < 0 or z >= CHUNK_SIZE:
+            return True  # Treat edge neighbors as solid for culling
+        if y < 0 or y >= WORLD_HEIGHT:
+            return False
         bid = self.data[x, y, z]
         return bid != AIR and bid != WATER
-
+    
     def update_block(self, x, y, z, bid):
+        """Update a single block and rebuild mesh"""
         if 0 <= x < CHUNK_SIZE and 0 <= z < CHUNK_SIZE and 0 <= y < WORLD_HEIGHT:
             self.data[x, y, z] = bid
-            # Rebuild chunk (inefficient but functional for demo)
+            # Rebuild chunk mesh
             self.build_mesh()
+    
+    def _generate_block_faces(self, x, y, z, bid):
+        """Generate vertices for visible faces of a block"""
+        verts = []
+        cols = []
+        color = BLOCK_COLORS.get(bid, color.white)
+        
+        # Define face vertices (local coordinates)
+        faces = [
+            # Top
+            [(0, 1, 0), (1, 1, 0), (1, 1, 1), (0, 1, 1)],
+            # Bottom
+            [(0, 0, 1), (1, 0, 1), (1, 0, 0), (0, 0, 0)],
+            # North
+            [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)],
+            # South
+            [(1, 0, 1), (0, 0, 1), (0, 1, 1), (1, 1, 1)],
+            # East
+            [(1, 0, 1), (1, 0, 0), (1, 1, 0), (1, 1, 1)],
+            # West
+            [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)],
+        ]
+        
+        # Check which faces are visible
+        face_checks = [
+            (0, 1, 0), (0, -1, 0), (0, 0, -1),
+            (0, 0, 1), (1, 0, 0), (-1, 0, 0)
+        ]
+        
+        for i, (dx, dy, dz) in enumerate(face_checks):
+            if self._is_solid_local(x + dx, y + dy, z + dz):
+                continue
+            
+            # Add face vertices
+            for vx, vy, vz in faces[i]:
+                verts.extend([x + vx, y + vy, z + vz])
+                cols.append(color)
+        
+        return verts, cols
 
 # --- Player Controller ---
 class Player(Entity):
@@ -246,9 +320,18 @@ class Player(Entity):
 
     def start_mining(self):
         hit = raycast(camera.world_position, camera.forward, distance=5)
-        if hit.hit and hasattr(hit.entity, 'block_id'):
-            self.mining_target = hit.entity
-            self.mining_progress = 0
+        if hit.hit:
+            # Check if hitting a chunk mesh
+            if hasattr(hit.entity, 'block_data'):
+                # Find closest block from hit position
+                block_data = hit.entity.block_data
+                chunk = hit.entity.chunk
+                self.mining_target = {
+                    'entity': hit.entity,
+                    'hit_pos': hit.world_point,
+                    'chunk': chunk
+                }
+                self.mining_progress = 0
 
     def stop_mining(self):
         self.mining_target = None
@@ -256,8 +339,14 @@ class Player(Entity):
 
     def place_block(self):
         hit = raycast(camera.world_position, camera.forward, distance=5)
-        if hit.hit and hasattr(hit.entity, 'block_id'):
-            pos = hit.entity.position + hit.normal
+        if hit.hit:
+            if hasattr(hit.entity, 'block_data'):
+                pos = hit.world_point + hit.normal * 0.5
+                # Snap to grid
+                pos = Vec3(round(pos.x), round(pos.y), round(pos.z))
+            else:
+                return
+                
             # Don't place inside player
             if distance_xz(pos, self.position) < 0.8 and abs(pos.y - self.y) < 1.8:
                 return
@@ -309,19 +398,29 @@ class Player(Entity):
 
         # Mining Logic
         if self.mining_target:
-            hardness = BLOCK_HARDNESS.get(self.mining_target.block_id, 1.0)
-            if hardness > 0:
-                tool_mult = 1.0 # Simplified tool logic
-                self.mining_progress += time.dt * tool_mult / hardness
-                # Visual crack could go here
-                if self.mining_progress >= 1.0:
-                    # Break block
-                    chunk = self.mining_target.parent_chunk
-                    if chunk:
-                        chunk.update_block(self.mining_target.x_idx, self.mining_target.y_idx, self.mining_target.z_idx, AIR)
-                    self.stop_mining()
-            else:
-                self.stop_mining() # Unbreakable
+            # Find closest block to hit position
+            chunk = self.mining_target['chunk']
+            hit_pos = self.mining_target['hit_pos']
+            
+            # Calculate block coordinates from hit position
+            bx, by, bz = int(hit_pos.x), int(hit_pos.y), int(hit_pos.z)
+            lx = bx % CHUNK_SIZE
+            lz = bz % CHUNK_SIZE
+            ly = by - WORLD_BOTTOM
+            
+            if 0 <= lx < CHUNK_SIZE and 0 <= lz < CHUNK_SIZE and 0 <= ly < WORLD_HEIGHT:
+                bid = chunk.data[lx, ly, lz]
+                hardness = BLOCK_HARDNESS.get(bid, 1.0)
+                if hardness > 0:
+                    tool_mult = 1.0  # Simplified tool logic
+                    self.mining_progress += time.dt * tool_mult / hardness
+                    # Visual crack could go here
+                    if self.mining_progress >= 1.0:
+                        # Break block
+                        chunk.update_block(lx, ly, lz, AIR)
+                        self.stop_mining()
+                else:
+                    self.stop_mining()  # Unbreakable
 
     def check_collision(self, x, y, z):
         # Simple AABB vs Voxel check
