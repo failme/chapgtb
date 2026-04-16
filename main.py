@@ -53,11 +53,11 @@ BLOCK_NAMES = {
 }
 
 BLOCK_COLORS = {
-    0: color.clear, 1: color.gray, 2: color.rgb(101, 67, 33), 3: color.rgb(79, 132, 46),
-    4: color.black, 5: color.rgb(237, 220, 142), 6: color.rgb(84, 53, 26),
-    7: color.rgb(46, 113, 36), 8: color.rgb(50, 50, 50), 9: color.rgb(217, 166, 127),
-    10: color.rgb(100, 227, 206), 11: color.rgb(255, 217, 64), 12: color.rgb(30, 30, 40),
-    13: color.rgba(41, 102, 237, 200), 14: color.rgb(109, 76, 46)
+    0: ursina_color.clear, 1: ursina_color.gray, 2: ursina_color.rgb(101, 67, 33), 3: ursina_color.rgb(79, 132, 46),
+    4: ursina_color.black, 5: ursina_color.rgb(237, 220, 142), 6: ursina_color.rgb(84, 53, 26),
+    7: ursina_color.rgb(46, 113, 36), 8: ursina_color.rgb(50, 50, 50), 9: ursina_color.rgb(217, 166, 127),
+    10: ursina_color.rgb(100, 227, 206), 11: ursina_color.rgb(255, 217, 64), 12: ursina_color.rgb(30, 30, 40),
+    13: ursina_color.rgba(41, 102, 237, 200), 14: ursina_color.rgb(109, 76, 46)
 }
 
 # Hardness (seconds to break with hand)
@@ -247,7 +247,7 @@ class Chunk(Entity):
         """Generate vertices for visible faces of a block"""
         verts = []
         cols = []
-        color = BLOCK_COLORS.get(bid, color.white)
+        block_color = BLOCK_COLORS.get(bid, ursina_color.white)
         
         # Define face vertices (local coordinates)
         faces = [
@@ -287,7 +287,7 @@ class Player(Entity):
     def __init__(self, world=None, **kwargs):
         super().__init__(**kwargs)
         self.world = world
-        self.cursor = Entity(parent=camera.ui, model='quad', scale=0.008, color=color.red)
+        self.cursor = Entity(parent=camera.ui, model='quad', scale=0.008, color=ursina_color.red)
         self.speed = 5
         self.jump_force = 8
         self.gravity = 20
@@ -479,19 +479,19 @@ class World(Entity):
 class InventoryUI(Entity):
     def __init__(self):
         super().__init__(parent=camera.ui, visible=False)
-        self.bg = Entity(parent=self, model='quad', scale=(0.8, 0.6), color=color.rgba(0,0,0,150))
+        self.bg = Entity(parent=self, model='quad', scale=(0.8, 0.6), color=ursina_color.rgba(0,0,0,150))
         self.slots = []
         for i in range(9):
-            slot = Entity(parent=self, model='quad', scale=0.05, position=(-0.35 + i*0.08, -0.25), color=color.gray)
+            slot = Entity(parent=self, model='quad', scale=0.05, position=(-0.35 + i*0.08, -0.25), color=ursina_color.gray)
             self.slots.append(slot)
             
     def update(self):
         for i, slot in enumerate(self.slots):
             # Highlight selected
             if i == player.selected_slot:
-                slot.color = color.white
+                slot.color = ursina_color.white
             else:
-                slot.color = color.gray
+                slot.color = ursina_color.gray
 
 # --- Setup ---
 app = Ursina()
