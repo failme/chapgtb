@@ -210,8 +210,9 @@ class Chunk(Entity):
 
 # --- Player Controller ---
 class Player(Entity):
-    def __init__(self, **kwargs):
+    def __init__(self, world=None, **kwargs):
         super().__init__(**kwargs)
+        self.world = world
         self.cursor = Entity(parent=camera.ui, model='quad', scale=0.008, color=color.red)
         self.speed = 5
         self.jump_force = 8
@@ -401,8 +402,8 @@ window.fullscreen = False
 window.exit_button.visible = False
 
 Sky(texture='sky_default')
-player = Player(position=(0, 100, 0))
 world = World()
+player = Player(world=world, position=(0, 100, 0))
 ui = InventoryUI()
 
 # Initial generation spawn
